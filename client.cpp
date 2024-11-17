@@ -12,7 +12,7 @@
 #include "addr_pack.h"
 
 int main(int argc, char **argv) {
-    if (argc < 5) {
+    if (argc < 4) {
         std::cerr << "Usage: " << basename(argv[0]) << " ip port passes"
                   << std::endl;
         return EXIT_FAILURE;
@@ -22,17 +22,31 @@ int main(int argc, char **argv) {
     const char *port_string = argv[2];
     const char *passes_string = argv[3];
 
-    addrinfo hints;
+    addrinfo hints = {};
     hints.ai_family = AF_INET;
     struct addrinfo *res;
     int ret = getaddrinfo(ip_string, NULL, &hints, &res);
+
+    switch (ret) {
+        case 0:
+            break;
+        case EAI_AGAIN:
+            fprintf(stderr, "Unable to resolve host '%s'.\n", argv[1]);
+            return 2;
+        default:
+            fprintf(stderr, "getaddrinfo failed with return code %d (%s).\n",
+                    ret, gai_strerror(ret));
+            return 2;
+    }
+
     if (ret != 0) {
         std::cerr << "Unable to resolve host '" << ip_string << "'."
                   << std::endl;
+        perror("Error");
         return EXIT_FAILURE;
     }
 
-    sockaddr_in sock_addr;
+    sockaddr_in sock_addr = {};
     socklen_t addr_len;
     memcpy(&sock_addr, res->ai_addr, res->ai_addrlen);
     addr_len = res->ai_addrlen;
@@ -53,16 +67,18 @@ int main(int argc, char **argv) {
 
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
 
-    AddressPack last_addr;
+    AddressPack last_addr = {};
 
     sendto(sock, &last_addr, sizeof(last_addr), 0, (const sockaddr *)&sock_addr,
            addr_len);
 
+    std::cout << "Waiting for the rendezvous server to respond..." << std::endl;
+
     recvfrom(sock, &last_addr, sizeof(last_addr), MSG_TRUNC, NULL, NULL);
 
-    struct sockaddr_in remote_addr;
-    int remote_set;
-    uint32_t iter;
+    sockaddr_in remote_addr = {};
+    int remote_set = 0;
+    uint32_t iter = 0;
     if (last_addr.ip == 0 && last_addr.port == 0) {
         remote_set = 0;
         iter = 0;
@@ -78,10 +94,11 @@ int main(int argc, char **argv) {
         real_passes++;
     }
 
+    std::cout << "Connection established, proceeding..." << std::endl;
+
     for (; iter < real_passes; iter++) {
         if (!(iter & 1)) {
-            uint32_t pass_buf;
-            pass_buf = 0;
+            uint32_t pass_buf = 0;
 
             socklen_t len = sizeof(remote_addr);
 
@@ -90,7 +107,7 @@ int main(int argc, char **argv) {
                      remote_set ? NULL : &len);
 
             remote_set = 1;
-            printf("Received '%u'\n", ntohl(pass_buf));
+            std::cout << "Received '" << ntohl(pass_buf) << "'" << std::endl;
         } else {
             assert(remote_set);
             uint32_t pass_buf = htonl((uint32_t)iter / 2);

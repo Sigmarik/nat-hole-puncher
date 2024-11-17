@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
 
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
 
-    sockaddr_in server_addr;
+    sockaddr_in server_addr = {};
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(port);
     server_addr.sin_addr.s_addr = INADDR_ANY;
@@ -27,10 +27,10 @@ int main(int argc, char **argv) {
     std::cout << "Listening to incoming rendezvous. Port: " << port
               << std::endl;
 
-    AddressPack last_addr;
+    AddressPack last_addr = {};
 
     for (unsigned long long iteration = 0;; ++iteration) {
-        sockaddr_in next_data;
+        sockaddr_in next_data = {};
         socklen_t next_len = sizeof(next_data);
 
         recvfrom(sock, NULL, 0, MSG_TRUNC, (sockaddr *)&next_data, &next_len);
@@ -40,9 +40,12 @@ int main(int argc, char **argv) {
 
         if (iteration & 1) {
             last_addr = AddressPack();
+            std::cout << "Rendezvous request satisfied." << std::endl;
         } else {
             last_addr.ip = next_data.sin_addr.s_addr;
             last_addr.port = next_data.sin_port;
+            std::cout << "Rendezvous request accepted. Waiting for a partner..."
+                      << std::endl;
         }
     }
 

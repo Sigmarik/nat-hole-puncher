@@ -13,7 +13,7 @@ server: $(SERVER_OBJECTS)
 run_server: server
 	cd build; ./server $(ARGS)
 
-run_client: client`
+run_client: client
 	cd build; ./client $(ARGS)
 
 rm:
